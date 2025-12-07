@@ -1,8 +1,6 @@
 import requests
 import pandas as pd
-import mplfinance as mpf
-from datetime import datetime, timedelta
-import asyncio
+from datetime import datetime, time, timezone
 import discord
 from discord.ext import tasks
 import os
@@ -17,26 +15,6 @@ ASSETS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "SOLUSDT", "PAXGUSDT"]
 
 intents = discord.Intents.default()
 bot = discord.Client(intents=intents)
-
-# -----------------------------
-# CUSTOM CHART STYLE
-# -----------------------------
-my_colors = mpf.make_marketcolors(
-    up="lightblue",
-    down="white",
-    wick={"up": "lightblue", "down": "white"},
-    edge={"up": "lightblue", "down": "white"},
-    volume={"up": "lightblue", "down": "white"},
-)
-
-my_style = mpf.make_mpf_style(
-    marketcolors=my_colors,
-    facecolor="black",
-    edgecolor="black",
-    figcolor="black",
-    gridcolor="black",
-    gridstyle="-"
-)
 
 # -----------------------------
 # FETCH DATA + CALCULATE BIAS
@@ -56,6 +34,7 @@ def get_data(symbol):
     df.set_index("Date", inplace=True)
     return df
 
+
 def calculate_bias(df):
     C1 = df["Close"].iloc[-2]
     O1 = df["Open"].iloc[-2]
@@ -74,45 +53,25 @@ def calculate_bias(df):
     else:
         return "NEUTRAL", "Indecisive structure with no clear directional pressure."
 
-def generate_chart(df, symbol):
-    fname = f"{symbol}.png"
-    mpf.plot(
-        df,
-        type="candle",
-        style=my_style,
-        savefig=fname,
-        tight_layout=True,
-        figsize=(12, 8)
-    )
-    return fname
 
 # -----------------------------
-# MIDNIGHT TASK (runs EXACTLY at 00:00 UTC)
+# DAILY MIDNIGHT UTC TASK
 # -----------------------------
-async def wait_until_midnight():
-    now = datetime.utcnow()
-    next_midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    wait_seconds = (next_midnight - now).total_seconds()
-    await asyncio.sleep(wait_seconds)
-
-@tasks.loop(hours=24)
-async def send_all_biases():
+@tasks.loop(time=time(0, 0, tzinfo=timezone.utc))
+async def send_daily_bias():
     channel = bot.get_channel(CHANNEL_ID)
 
     embed = discord.Embed(
         title="📊 Daily Crypto Market Bias",
-        description="Automatically calculated at daily bar close.\n\nAssets: **BTC, ETH, BNB, XRP, SOL, PAXG**",
+        description="Automatically calculated at the daily bar close.\n\nAssets: BTC, ETH, BNB, XRP, SOL, PAXG",
         color=discord.Color.blue()
     )
     embed.set_footer(text="Uptrick Daily Bias System")
 
-    chart_files = []
-
+    # Add all assets but NO images
     for asset in ASSETS:
         df = get_data(asset)
         bias, reason = calculate_bias(df)
-        chart_file = generate_chart(df, asset)
-        chart_files.append(chart_file)
 
         embed.add_field(
             name=f"**{asset}**",
@@ -120,28 +79,19 @@ async def send_all_biases():
             inline=False
         )
 
-    # Send embed first
     await channel.send(embed=embed)
 
-    # Then send charts
-    for file in chart_files:
-        await channel.send(file=discord.File(file))
 
 # -----------------------------
-# START LOGIC
+# BOT READY
 # -----------------------------
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    channel = bot.get_channel(CHANNEL_ID)
+    await channel.send("Bot is online. Daily bias system activated. Next post at 00:00 UTC.")
+    send_daily_bias.start()
 
-    # Wait until the next midnight UTC
-    await wait_until_midnight()
-
-    # Run once at midnight
-    await send_all_biases()
-
-    # Then run every 24 hours from that point
-    send_all_biases.start()
 
 # -----------------------------
 # RUN BOT
