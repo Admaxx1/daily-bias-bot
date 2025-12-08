@@ -9,7 +9,7 @@ import os
 # CONFIG
 # -----------------------------
 TOKEN = os.getenv("DISCORD_TOKEN")
-CHANNEL_ID = 1445836334630699083  # Your channel ID
+CHANNEL_ID = 1445836334630699083   # Your channel ID
 
 ASSETS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "SOLUSDT", "PAXGUSDT"]
 
@@ -68,7 +68,6 @@ async def send_daily_bias():
     )
     embed.set_footer(text="Uptrick Daily Bias System")
 
-    # Add all assets but NO images
     for asset in ASSETS:
         df = get_data(asset)
         bias, reason = calculate_bias(df)
@@ -91,7 +90,9 @@ async def on_ready():
     channel = bot.get_channel(CHANNEL_ID)
     await channel.send("Bot is online. Daily bias system activated. Next post at 00:00 UTC.")
 
-send_daily_bias.start()
+    # Start loop safely once the bot's event loop exists
+    if not send_daily_bias.is_running():
+        bot.loop.create_task(send_daily_bias())
 
 
 # -----------------------------
