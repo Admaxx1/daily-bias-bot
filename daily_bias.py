@@ -90,7 +90,8 @@ async def on_ready():
     print(f"Logged in as {bot.user}")
     channel = bot.get_channel(CHANNEL_ID)
     await channel.send("Bot is online. Daily bias system activated. Next post at 00:00 UTC.")
-    send_daily_bias.start()
+
+send_daily_bias.start()
 
 
 # -----------------------------
