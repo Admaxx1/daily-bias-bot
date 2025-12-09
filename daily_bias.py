@@ -16,8 +16,9 @@ ASSETS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "SOLUSDT", "PAXGUSDT"]
 intents = discord.Intents.default()
 bot = discord.Client(intents=intents)
 
+
 # -----------------------------
-# FETCH DATA + CALCULATE BIAS
+# FETCH DATA
 # -----------------------------
 def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
@@ -35,6 +36,9 @@ def get_data(symbol):
     return df
 
 
+# -----------------------------
+# BIAS CALCULATION
+# -----------------------------
 def calculate_bias(df):
     C1 = df["Close"].iloc[-2]
     O1 = df["Open"].iloc[-2]
@@ -55,15 +59,15 @@ def calculate_bias(df):
 
 
 # -----------------------------
-# DAILY MIDNIGHT UTC TASK
+# DAILY UTC 00:10 TASK
 # -----------------------------
-@tasks.loop(time=time(0, 0, tzinfo=timezone.utc))
+@tasks.loop(time=time(0, 10, tzinfo=timezone.utc))
 async def send_daily_bias():
     channel = bot.get_channel(CHANNEL_ID)
 
     embed = discord.Embed(
         title="📊 Daily Crypto Market Bias",
-        description="Automatically calculated at the daily bar close.\n\nAssets: BTC, ETH, BNB, XRP, SOL, PAXG",
+        description="Automatically calculated at the daily bar close.\nAssets: BTC, ETH, BNB, XRP, SOL, PAXG",
         color=discord.Color.blue()
     )
     embed.set_footer(text="Uptrick Daily Bias System")
@@ -73,7 +77,7 @@ async def send_daily_bias():
         bias, reason = calculate_bias(df)
 
         embed.add_field(
-            name=f"**{asset}**",
+            name=f"{asset}",
             value=f"**Bias:** {bias}\n**Reason:** {reason}",
             inline=False
         )
@@ -87,15 +91,15 @@ async def send_daily_bias():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    channel = bot.get_channel(CHANNEL_ID)
-    await channel.send("Bot is online. Daily bias system activated. Next post at 00:00 UTC.")
 
-    # Start loop safely once the bot's event loop exists
+    channel = bot.get_channel(CHANNEL_ID)
+    await channel.send("Bot is online. Daily bias system activated.")
+
     if not send_daily_bias.is_running():
-        bot.loop.create_task(send_daily_bias())
+        send_daily_bias.start()
 
 
 # -----------------------------
-# RUN BOT
+# RUN
 # -----------------------------
 bot.run(TOKEN)
